@@ -1,0 +1,5 @@
+Global delayL=0£¬delayR=null Universality p1
+After q delayL=5 delayR=null Absence p2
+After q Until r  delayL=0£¬delayR=5 delayRE=0 existence p3
+When q  delayL=4£¬delayR=5 delayRE=0 Absence p4
+After q Until r  delayL=2£¬delayR=null delayRE=5 Universality p5
