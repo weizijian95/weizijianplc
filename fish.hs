@@ -1,6 +1,7 @@
 import System.IO
 import Data.Char(toUpper)
 main :: IO ()
+魏梓健已修改
 main = do specfile <- openFile "spec.txt" ReadWriteMode
           specGuide specfile
           hClose specfile
@@ -120,7 +121,7 @@ specGuide specfile=
                                              hPutStrLn specfile ("When "++info_q++"  delayL="++info_t1++"，delayR=null delayRE="++info_t3++" "++info_prop++" "++info_p)
                                              specGuide specfile
                                ????
-                               
+         .12                      
 {-     inh <- openFile "input.txt" ReadMode
     outh <- openFile "output.txt" WriteMode
     mainloop inh outh
