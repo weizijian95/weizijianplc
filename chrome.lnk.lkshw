@@ -1,0 +1,14 @@
+Version of workspace file format:
+               2
+Time of storage:
+               "Wed Dec  2 13:31:21 \20013\22269\26631\20934\26102\38388 2020"
+Name of the workspace:
+               "chrome.lnk"
+File paths of contained packages:
+               ["Fish\\Fish.cabal"]
+Maybe file path of an active package:
+               Just "Fish\\Fish.cabal"
+Maybe name of an active executable:
+               Nothing
+Version Control System configurations for packages:
+               fromList []
