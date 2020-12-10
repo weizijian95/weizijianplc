@@ -1,5 +1,22 @@
-Global delayL=0£¬delayR=null Universality p1
-After q delayL=5 delayR=null Absence p2
-After q Until r  delayL=0£¬delayR=5 delayRE=0 existence p3
-When q  delayL=4£¬delayR=5 delayRE=0 Absence p4
-After q Until r  delayL=2£¬delayR=null delayRE=5 Universality p5
+Global,Universality p1
+Global delayR=1,Absence p2
+Beforeq1,Existence p3
+Global,delayL=2Universality p4
+Global delayL=3delayR=4,Universality p5
+Beforeq delayL=5,Universality p6
+BeforeqdelayL=1 delay RE=3,Universality p7
+Beforeq delayL=1 delay R=3,Universality p8
+Beforeq delayL=1 delay R=2 delay RE=3,Universality p9
+After q,Universality p10
+After q delayR=1,Universality p11
+After qUntilq,Universality p12
+After qUntilq delay RE=3,Universality p12
+Global,Universality p13
+After qUntilq delay R=1,Universality p14
+After qUntilq delay R=1 delay RE=1,Universality p15
+After q delayL=1,Universality p16
+After 2 delayL=2 delayR=1,Universality p18
+After qUntilq delayL=1,Universality p19
+After qUntilq delayL=1 delay RE=2,Universality p19
+After not (q)Until(q and q) delayL=5 delay R=2,Universality p21
+After qUntil((not (q) or q) and q) delayL=2 delay R=a delay RE=q,Universality p23
