@@ -1,5 +1,7 @@
 import System.IO
 import Data.Char(toUpper)
+魏梓健在家修改了一次a
+在家修改
 main :: IO ()
 main = do specfile <- openFile "spec.txt" ReadWriteMode
           specGuide specfile
