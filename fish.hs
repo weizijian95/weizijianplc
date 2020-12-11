@@ -1,11 +1,36 @@
 import System.IO
+data Var=VarI Int
+        |VarO Int
+        |VarT Int 
+        |VarM Int
+        deriving (Eq, Show)
+data Event=SingleEvent Var 
+          |Not Event
+          |And Event Event
+          |Or Event Event
+data Delay=DelayLRRE Int Int Int
+data Scope=Global Delay
+          |After Event Delay
+          |Before Event Delay
+          |AfterUntil Event Event Delay
+          |SIn Scope Scope
+          |SAnd Scope Scope
+          |SOr Scope Scope
+          |SNot Scope
+data Property=Universality|Absence|Existence
+data Level=Level Int
+data Specification=Spec Scope Property Var Level
+readSpecfile::Handle->[Specification]
+-- 读出生成的规约文件中的规约
+readSpecfile filename=[]
 main :: IO ()
 main = do specfile <- openFile "spec.txt" ReadWriteMode
           specGuide specfile
           hClose specfile
 specGuide:: Handle->IO()
+-- 规约引导
 specGuide specfile= 
-        do {
+        do {          
                 putStrLn "请根据向导完成规约描述";
                 putStrLn "请输入新规约的控制对象名称，若所有规约已输入完成，请输入done";
                 info_p<-getLine;
@@ -35,9 +60,9 @@ specGuide specfile=
                                         "af"->do {putStrLn "请输入右端点事件"; info_r<-eventGuide; putStrLn "请输入t2"; info_t2<-getLine;putStrLn"请输入t3"; info_t3<-getLine;
                                           hPutStrLn specfile ("Before "++info_r++" delay R="++info_t2++" delay RE="++info_t3++","++info_prop++" "++info_p)}
                                         
-                                        "ba"->do {putStrLn "请输入t1"; info_t1<-getLine;hPutStrLn specfile ("Global,"++"delayL="++info_t1++info_prop++" "++info_p)}
+                                        "ba"->do {putStrLn "请输入t1"; info_t1<-getLine;hPutStrLn specfile ("Global,"++"delayL="++info_t1++" "++info_prop++" "++info_p)}
                                         "bb"->do {putStrLn "请输入t1"; info_t1<-getLine;putStrLn "请输入t2"; info_t2<-getLine;
-                                          hPutStrLn specfile ("Global "++"delayL="++info_t1++"delayR="++info_t2++","++info_prop++" "++info_p)}
+                                          hPutStrLn specfile ("Global "++"delayL="++info_t1++" delayR="++info_t2++","++info_prop++" "++info_p)}
                                         "bc"->do {putStrLn "请输入t1"; info_t1<-getLine;putStrLn "请输入右端点事件"; info_r<-eventGuide;
                                           hPutStrLn specfile ("Before "++info_r++" "++"delayL="++info_t1++","++info_prop++" "++info_p)}
                                         "bd"->do {putStrLn "请输入t1"; info_t1<-getLine;putStrLn "请输入右端点事件"; info_r<-eventGuide; putStrLn "请输入t3"; info_t3<-getLine;
@@ -77,6 +102,7 @@ specGuide specfile=
                              }
         }
 eventGuide::IO String
+-- 引导输入复合命题的事件
 eventGuide=do {
         putStrLn "请选择事件类型 (a)发生某原子事件,即p (b)不发生某事件，即not e (c)某两事件同时发生，即e1 and e2 (d)某两事件发生其一，即e1 or e2 ";
         ans<-getLine;
