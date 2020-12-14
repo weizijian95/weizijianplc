@@ -1,5 +1,5 @@
-Global,Universality p1
-Global delayR=1,Absence p2
+(Global) and (Before q),Universality p
+Absence p2
 Before q1,Existence p3
 Global,delayL=2 Universality p4
 Global delayL=3 delayR=4,Universality p5
