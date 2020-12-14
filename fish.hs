@@ -17,9 +17,9 @@ data Scope=Global Delay
           |SAnd Scope Scope
           |SOr Scope Scope
           |SNot Scope
-data Property=Universality|Absence|Existence
+data Property=Universality|Absence|Existence deriving Show
 data Level=Level Int
-data Specification=Spec Scope Property Var Level
+data Specification=Spec Scope Property Var Level 
 data Com=LD Var
         |LDN Var
         |A Com Var
@@ -30,6 +30,7 @@ data Ladder=Outputc Com Var
            |Outputt Com Var Int
 data Project=EmptyProject 
              |Append Ladder Project
+-- 定义所有类型的show接口
 instance Show Com where
     show (LD v1)   ="LD\t"++show v1
     show (LDN v1)   ="LDN\t"++show v1 
@@ -43,31 +44,26 @@ instance Show Ladder where
 instance Show Project where
     show EmptyProject   = ""
     show (Append l1 p1) = show l1 ++"\n"++show p1
--- 读出生成的规约文件中的规约
-readSpecfile::Handle->[Specification]
-readSpecfile filename=[]
--- 核心算法：将一组规约转化为程序
-transSpecsToProject::[Specification]->Project
-transSpecsToProject specs=EmptyProject
--- 规约引导
-specGuide:: Handle->IO()
-specGuide specfile= 
-        do {          
-                putStrLn "请根据向导完成规约描述";
-                putStrLn "请输入新规约的控制对象名称，若所有规约已输入完成，请输入done";
-                info_p<-getLine;
-                case info_p of 
-                     "done"-> do {putStrLn "规约文件spec.txt生成完毕"; return ()}   
-                     _->do 
-                             {scope<-scopeGuide;
-                              putStrLn "请选择对规约控制对象的要求 (a)在控制区间内一直发生 (b)在控制区间内一直不发生 (c)仅在控制区间的左端点发生";
-                              ans3<-getLine ;
-                              let {info_prop=case ans3 of
-                                                  "a"->"Universality"
-                                                  "b"->"Absence"
-                                                  "c"->"Existence" } in
-                                hPutStrLn specfile (scope++","++info_prop++" "++info_p);specGuide specfile } 
-                             }
+instance Show Event where 
+  show (SingleEvent v)=show v
+  show (Not e)="Not ("++show e++")"
+  show (And e1 e2)="("++show e1++") And ("++show e2 ++")"
+  show (Or e1 e2)="("++show e1++") Or ("++show e2 ++")"
+instance Show Scope where
+  show (Global d)="Global "++show d
+  show (After e d)="After "++show e++" "++show d
+  show (Before e d)="Before "++show e++" "++show d
+  show (AfterUntil e1 e2 d)="After "++show e1++" until "++show e2++" "++show d
+  show (SIn s1 s2)=show s1++" In ("++show s2++")"
+  show (SAnd s1 s2)=show s1++" And ("++show s2++")"
+  show (SOr s1 s2)=show s1++" Or ("++show s2++")"
+  show (SNot s)=" Not ("++show s++")"
+instance Show Delay where
+  show (DelayLRRE t1 t2 t3)="delayL="++show t1++" delayR="++show t2++" delayRE="++show t3
+instance Show Level where
+  show (Level x)="level="++show x
+instance Show Specification where
+    show (Spec s p v l)   = show s++" "++show p++" "++show v++" "++show l
 -- 引导输入复合区间       
 scopeGuide:: IO String
 scopeGuide= do{
@@ -149,12 +145,38 @@ eventGuide=do {
                 "d"->do {putStrLn"请录入事件1"; p1<-eventGuide; putStrLn $"当前事件为："++p1++" or 事件2"; putStrLn"请录入事件2"; p2<-eventGuide;return ("("++p1++" or "++p2++")")}
                 _-> do {putStrLn"非法输入，请重新输入"; p<-eventGuide;return p}
 }
+-- 规约引导,输出规约文件
+specGuide:: Handle->IO()
+specGuide specfile= 
+        do {          
+                putStrLn "请根据向导完成规约描述";
+                putStrLn "请输入新规约的控制对象名称，若所有规约已输入完成，请输入done";
+                info_p<-getLine;
+                case info_p of 
+                     "done"-> do {putStrLn "规约文件spec.txt生成完毕"; return ()}   
+                     _->do 
+                             {scope<-scopeGuide;
+                              putStrLn "请选择对规约控制对象的要求 (a)在控制区间内一直发生 (b)在控制区间内一直不发生 (c)仅在控制区间的左端点发生";
+                              ans3<-getLine ;
+                              putStrLn "请输入一个整数代表该规约的优先级：";
+                              level<-getLine ;
+                              let {info_prop=case ans3 of
+                                                  "a"->"Universality"
+                                                  "b"->"Absence"
+                                                  "c"->"Existence" } in
+                                hPutStrLn specfile (scope++","++info_prop++" "++info_p++" level="++level);specGuide specfile } 
+                             }
+-- 读出生成的规约文件中的规约
+readSpecfile::Handle->[Specification]
+readSpecfile filename=[]
+-- 核心算法：将一组规约转化为程序
+transSpecsToProject::[Specification]->Project
+transSpecsToProject specs=Append (Outputc (AN (O (LD(VarI 0)) (VarO 0)) (VarI 1)) (VarO 0)) EmptyProject
 -- 主函数
 main :: IO ()
 main = do specfile <- openFile "spec.txt" ReadWriteMode
           specGuide specfile
-          hClose specfile
           projectfile <- openFile "IL.txt" WriteMode
-          let p1=Append (Outputc (AN (O (LD(VarI 0)) (VarO 0)) (VarI 1)) (VarO 0)) EmptyProject in 
-            do{hPutStrLn projectfile (show p1 )  ; putStrLn "代码文件IL.txt生成完成";
+          let p1=transSpecsToProject (readSpecfile specfile) in 
+            do{hPutStrLn projectfile (show p1 )  ; putStrLn "代码文件IL.txt生成完成";          hClose specfile;
             hClose projectfile}
