@@ -1,0 +1,5 @@
+LD	VarI 0
+O	VarO 0
+AN	VarI 1
+=	VarO 0
+

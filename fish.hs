@@ -20,15 +20,37 @@ data Scope=Global Delay
 data Property=Universality|Absence|Existence
 data Level=Level Int
 data Specification=Spec Scope Property Var Level
-readSpecfile::Handle->[Specification]
+data Com=LD Var
+        |LDN Var
+        |A Com Var
+        |AN Com Var
+        |O Com Var 
+        |ON Com Var
+data Ladder=Outputc Com Var 
+           |Outputt Com Var Int
+data Project=EmptyProject 
+             |Append Ladder Project
+instance Show Com where
+    show (LD v1)   ="LD\t"++show v1
+    show (LDN v1)   ="LDN\t"++show v1 
+    show (A c1 v1)   =show c1++"\nA\t"++show v1 
+    show (AN c1 v1)   =show c1++"\nAN\t"++show v1  
+    show (O c1 v1)   =show c1++"\nO\t"++show v1
+    show (ON c1 v1)   =show c1++"\nON\t"++show v1
+instance Show Ladder where
+    show (Outputc c1 v1)   =show c1++"\n"++"=\t"++show v1
+    show (Outputt c1 v1 t1) = show c1++"\n"++"TON\t"++show v1++","++show t1
+instance Show Project where
+    show EmptyProject   = ""
+    show (Append l1 p1) = show l1 ++"\n"++show p1
 -- 读出生成的规约文件中的规约
+readSpecfile::Handle->[Specification]
 readSpecfile filename=[]
-main :: IO ()
-main = do specfile <- openFile "spec.txt" ReadWriteMode
-          specGuide specfile
-          hClose specfile
-specGuide:: Handle->IO()
+-- 核心算法：将一组规约转化为程序
+transSpecsToProject::[Specification]->Project
+transSpecsToProject specs=EmptyProject
 -- 规约引导
+specGuide:: Handle->IO()
 specGuide specfile= 
         do {          
                 putStrLn "请根据向导完成规约描述";
@@ -46,7 +68,7 @@ specGuide specfile=
                                                   "c"->"Existence" } in
                                 hPutStrLn specfile (scope++","++info_prop++" "++info_p);specGuide specfile } 
                              }
-       
+-- 引导输入复合区间       
 scopeGuide:: IO String
 scopeGuide= do{
   putStrLn "请选择规约控制区间的类型 (a)在单个区间成立 (b)在两个区间的交集成立 (c)在两个区间都成立 (d)在区间2中寻找满足区间1要求的区间成立";
@@ -127,3 +149,12 @@ eventGuide=do {
                 "d"->do {putStrLn"请录入事件1"; p1<-eventGuide; putStrLn $"当前事件为："++p1++" or 事件2"; putStrLn"请录入事件2"; p2<-eventGuide;return ("("++p1++" or "++p2++")")}
                 _-> do {putStrLn"非法输入，请重新输入"; p<-eventGuide;return p}
 }
+-- 主函数
+main :: IO ()
+main = do specfile <- openFile "spec.txt" ReadWriteMode
+          specGuide specfile
+          hClose specfile
+          projectfile <- openFile "IL.txt" WriteMode
+          let p1=Append (Outputc (AN (O (LD(VarI 0)) (VarO 0)) (VarI 1)) (VarO 0)) EmptyProject in 
+            do{hPutStrLn projectfile (show p1 )  ; putStrLn "代码文件IL.txt生成完成";
+            hClose projectfile}
