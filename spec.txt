@@ -1,1 +1,9 @@
+Global  Universality VarO 1 level=1
+Global  And (Global ) Absence VarO 2 level=2
+Global  Or (Global ) Existence VarO 3 level=3
+Global  In (Global ) Universality VarO 4 level=4
+ Not (Global ) Universality VarO 5 level=6
+Global  Or (Global ) And (Global ) Universality VarO 6 level=6
+Before (VarO 2) ,delayL=1 delayR=1 delayRE=2 Absence VarO 7 level=7
+After (VarI 2 )until (((VarI 1) Or (VarO 2)) And (VarI 3)) ,delayL=3 delayR=3 Absence VarO 8 level=8
 

@@ -50,34 +50,34 @@ instance Show Event where
   show (And e1 e2)="("++show e1++") And ("++show e2 ++")"
   show (Or e1 e2)="("++show e1++") Or ("++show e2 ++")"
 instance Show Scope where
-  show (Global d)="Global "++show d
+  show (Global d)="Global"++show d
   show (After e d)="After ("++show e++") "++show d
   show (Before e d)="Before ("++show e++") "++show d
-  show (AfterUntil e1 e2 d)="After ("++show e1++" )until ("++show e2++") "++show d
-  show (SIn s1 s2)=show s1++" In ("++show s2++")"
-  show (SAnd s1 s2)=show s1++" And ("++show s2++")"
-  show (SOr s1 s2)=show s1++" Or ("++show s2++")"
+  show (AfterUntil e1 e2 d)="After ("++show e1++")until ("++show e2++") "++show d
+  show (SIn s1 s2)="("++show s1++") In ("++show s2++")"
+  show (SAnd s1 s2)="("++show s1++") And ("++show s2++")"
+  show (SOr s1 s2)="("++show s1++") Or ("++show s2++")"
   show (SNot s)=" Not ("++show s++")"
 instance Show Delay where
   show (DelayLRRE t1 t2 t3)=case t1 of 
                                 0->case t2 of
                                         0->case t3 of
-                                                0->""
-                                                _->",delayRE="++show t3
+                                                0->","
+                                                _->",delayRE="++show t3++","
                                         _->case t3 of
-                                                0->",delayR="++show t2
-                                                _->",delayR="++show t2++" delayRE="++show t3
+                                                0->",delayR="++show t2++","
+                                                _->",delayR="++show t2++" delayRE="++show t3++","
                                 _->case t2 of
                                         0->case t3 of
-                                                0->",delayL="++show t1
-                                                _->",delayL="++show t1++" delayRE="++show t3
+                                                0->",delayL="++show t1++","
+                                                _->",delayL="++show t1++" delayRE="++show t3++","
                                         _->case t3 of
-                                                0->",delayL="++show t1++" delayR="++show t2
-                                                _->",delayL="++show t1++" delayR="++show t2++" delayRE="++show t3
+                                                0->",delayL="++show t1++" delayR="++show t2++","
+                                                _->",delayL="++show t1++" delayR="++show t2++" delayRE="++show t3++","
 instance Show Level where
-  show (Level x)="level="++show x
+  show (Level x)=",level="++show x
 instance Show Specification where
-    show (Spec s p v l)   = show s++" "++show p++" "++show v++" "++show l
+    show (Spec s p v l)   = show s++" ["++show p++" "++show v++"] "++show l
 
 eventGuide::IO Event
 -- 引导输入复合命题的事件
