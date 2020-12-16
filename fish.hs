@@ -3,7 +3,9 @@ data Var=VarI Int
         |VarO Int
         |VarT Int 
         |VarM Int
-        deriving (Eq, Show)
+        |SM0
+        |SM1
+        deriving Eq
 data Event=SingleEvent Var 
           |Not Event
           |And Event Event
@@ -31,6 +33,12 @@ data Ladder=Outputc Com Var
 data Project=EmptyProject 
              |Append Ladder Project
 -- 定义所有类型的show接口
+instance Show Var where
+  show (VarI i)="VarI "++show i
+  show (VarO i)="VarO "++show i
+  show (VarM i)="VarM "++show i
+  show (SM0)="SM0.0"
+  show (SM1)="SM0.1"
 instance Show Com where
     show (LD v1)   ="LD\t"++show v1
     show (LDN v1)   ="LDN\t"++show v1 
@@ -191,9 +199,126 @@ transSpecsToString::[Specification]->String
 transSpecsToString ls=case ls of
                            []->""
                            spec:lss->show spec++"\n"++transSpecsToString lss
+levelOfSpec::Specification->Int  
+levelOfSpec spec=case spec of
+                      Spec s p v l->case l of 
+                                         Level l'->l'
+-- 查看一个规约的控制对象
+effectOfSpec::Specification->Var
+effectOfSpec spec=case spec of
+                       Spec s p v l->v
+-- 特殊函数：查看一个规约组的控制对象
+effectOfSpecs::[Specification]->Var
+effectOfSpecs specs=case specs of
+                         spec1:l1->effectOfSpec spec1 
+-- 查看一条规约所依赖的变量
+beEffectedOfSpec::Specification->[Var]
+beEffectedOfSpec spec=case spec of
+                       Spec s p v l->scopeEffect s
+-- 查看多条规约所依赖的变量
+beEffectedOfSpecs::[Specification]->[Var]
+beEffectedOfSpecs specs=case specs of
+                             []->[]
+                             spec1:l1->beEffectedOfSpec spec1++beEffectedOfSpecs l1
+-- 查看一个scope里面涉及了哪些变量
+scopeEffect::Scope->[Var]
+scopeEffect s=case s of
+                  Global d->[]
+                  After e d->eventEffect e
+                  Before e d->eventEffect e
+                  AfterUntil e1 e2 d->eventEffect e1++eventEffect e2
+                  SIn s1 s2->scopeEffect s1++scopeEffect s2
+                  SAnd s1 s2->scopeEffect s1++scopeEffect s2
+                  SOr s1 s2->scopeEffect s1++scopeEffect s2
+                  SNot s->scopeEffect s
+-- 查看一个event里面涉及了哪些变量
+eventEffect ::Event->[Var]
+eventEffect e=case e of
+                   SingleEvent v->[v]
+                   Not e1->eventEffect e1
+                   And e1 e2 -> eventEffect e1 ++ eventEffect e2
+                   Or e1 e2 -> eventEffect e1 ++ eventEffect e2
+-- 查看一个变量是否在变量列表里
+varIn::Var->[Var] ->Bool
+varIn v l=case l of 
+              [] -> False
+              v1:l1 -> if v1 == v then True else (varIn v l1)
+-- 查看两组变量是否有交集
+varsIn::[Var]->[Var]->Bool
+varsIn l1 l2=case l1 of 
+                  []-> False
+                  v1:l1'->if (varIn v1 l2) then True else (varsIn l1' l2)
 -- 核心算法：将一组规约转化为程序
 transSpecsToProject::[Specification]->Project
-transSpecsToProject specs=Append (Outputc (AN (O (LD(VarI 0)) (VarO 0)) (VarI 1)) (VarO 0)) EmptyProject
+transSpecsToProject specs=transSpecgroupsToProject (groupSpecs specs)
+-- 将规约按照相同控制对象分组为规约组
+groupSpecs::[Specification]->[[Specification]]
+groupSpecs specs=case specs of
+                      []->[]
+                      spec1:l1->insertSpec spec1 (groupSpecs l1)
+-- 将一个规约插入已经group完成的规约组中
+insertSpec::Specification->[[Specification]]->[[Specification]]
+insertSpec spec ll=case ll of
+                        []->[[spec]]
+                        group1:ll'->if (effectOfSpec spec)==(effectOfSpecs group1) then (group1++[spec]):ll' else group1:(insertSpec spec ll')
+-- 将所有规约组按照依赖关系拓扑排序
+sortGroups::[[Specification]]->[[Specification]]
+sortGroups groups=case groups of
+                       []->[]
+                       group1:ll->fst (selectOne groups):sortGroups(snd(selectOne groups))
+-- 在规约组集合中选出一个入度为0的规约组，并求出删除该规约组后的规约组集合
+selectOne :: [[Specification]]->([Specification],[[Specification]])
+selectOne groups=case groups of
+                      []->error "规约中存在循环依赖或自依赖" 
+                      group1:ll->if (inNumZero group1 groups) then (group1,ll) else (fst(selectOne ll),group1:snd(selectOne ll))   
+-- 求一个规约组在规约组集合中入度是否为0
+inNumZero::[Specification] ->[[Specification]]->Bool
+inNumZero group groups=case groups of
+                            []->True
+                            group1:l1->if varIn (effectOfSpecs group1) (beEffectedOfSpecs group)  then False else inNumZero group l1               
+-- 将规约组集合转化为程序
+transSpecgroupsToProject::[[Specification]]->Project
+transSpecgroupsToProject groups=case groups of
+                                     []->EmptyProject
+                                     group1:ll->pconcat (transOneGroupToProject group1) (transSpecgroupsToProject ll)
+-- 将两个程序连接成一个程序
+pconcat::Project->Project->Project
+pconcat p1 p2=case p2 of 
+                   EmptyProject->p1
+                   Append l2 p2'->pconcat (pconcatoneladder p1 l2) p2'
+-- 将一个程序后面拼接一个梯级
+pconcatoneladder::Project->Ladder->Project
+pconcatoneladder p1 l2=case p1 of
+                            EmptyProject->Append l2 EmptyProject
+                            Append l1 p1'->Append l1 (pconcatoneladder p1' l2)
+-- 将一个规约组改为按优先级排好序的规约组(1改)
+changeGroup1::[Specification]->[Specification]
+changeGroup1 group=case group of
+                        []->[]
+                        spec1:g1->specinsert spec1 (changeGroup1 g1)
+-- 插入排序，将一条规约插入到一个规约列表中
+specinsert::Specification->[Specification]->[Specification]
+specinsert spec l=case l of
+                       []->[spec]
+                       s0:l'->if (levelOfSpec spec)>(levelOfSpec s0) then spec:l else s0:(specinsert spec l')
+-- 将一个规约组的非原子事件提取出来转化为程序，并修改规约(2改)
+changeGroup2::[Specification]->(Project,[Specification])
+changeGroup2 group=
+-- 将一个规约组的非原子范围提取出来转化为程序，并修改规约(3改)
+changeGroup3::[Specification]->(Project,[Specification])
+changeGroup3 group=
+-- 将一个规约组转化为程序
+transOneGroupToProject::[Specification]->Project
+transOneGroupToProject group=
+  let c1spec=changeGroup1 group in
+    let c2spec=changeGroup2 c1spec in 
+      let c3spec=changeGroup3 (snd c2spec) in
+        pconcat (pconcat (fst c2spec) (fst c3spec)) (transPerfectSpec (snd c3spec))
+-- 将三改后的规约转化为程序
+transPerfectSpec::[Specification]->Project
+transPerfectSpec group=
+-- 转程序过程中，需要用到中间变量，中间变量的命名，
+-- 使用VarM i j k （i表示第几个规约组，j为2表示2改时表示事件用的变量 为3表示3改时表示范围用的变量，为0时表示最终规约范围。k表示最终编号，j为0时k表示第k条规约要求的范围）
 -- 主函数
 main :: IO ()
 main = do specfile <- openFile "spec.txt" ReadWriteMode
