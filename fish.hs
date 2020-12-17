@@ -1,8 +1,9 @@
 import System.IO
 data Var=VarI Int
         |VarO Int
-        |VarT Int 
-        |VarM Int
+        |VarT Int Int Int 
+        |VarS Int Int
+        |VarM Int Int Int
         |SM0
         |SM1
         deriving Eq
@@ -36,7 +37,9 @@ data Project=EmptyProject
 instance Show Var where
   show (VarI i)="VarI "++show i
   show (VarO i)="VarO "++show i
-  show (VarM i)="VarM "++show i
+  show (VarM i j k)="VarM "++show i++"."++show j++"."++show k
+  show (VarT i j k)="VarT "++show i++"."++show j++"."++show k
+  show (VarS i j )="VarS "++show i++"."++show j
   show (SM0)="SM0.0"
   show (SM1)="SM0.1"
 instance Show Com where
@@ -248,9 +251,6 @@ varsIn::[Var]->[Var]->Bool
 varsIn l1 l2=case l1 of 
                   []-> False
                   v1:l1'->if (varIn v1 l2) then True else (varsIn l1' l2)
--- 核心算法：将一组规约转化为程序
-transSpecsToProject::[Specification]->Project
-transSpecsToProject specs=transSpecgroupsToProject (groupSpecs specs)
 -- 将规约按照相同控制对象分组为规约组
 groupSpecs::[Specification]->[[Specification]]
 groupSpecs specs=case specs of
@@ -276,8 +276,24 @@ inNumZero::[Specification] ->[[Specification]]->Bool
 inNumZero group groups=case groups of
                             []->True
                             group1:l1->if varIn (effectOfSpecs group1) (beEffectedOfSpecs group)  then False else inNumZero group l1               
+-- 给一组规约从某数开始标号
+markSpec::Int->[Specification]->[(Specification,Int)]
+markSpec start specs=case specs of
+                    []->[]
+                    spec0:l->(spec0,start):markSpec (start+1) l
+-- 给一组规约组从某数开始标号
+markGroup::Int->[[(Specification,Int)]]->[([(Specification,Int)],Int)]
+markGroup start groups=case groups of
+                            []->[]
+                            group0:l->(group0,start):markGroup (start+1) l
+-- 将规约组集合标号
+markGroupSet::[[Specification]]->[([(Specification,Int)],Int)]
+markGroupSet groups=markGroup 0 (map (markSpec 0) groups)
+-- 核心算法：将一组规约转化为程序
+transSpecsToProject::[Specification]->Project
+transSpecsToProject specs=transSpecgroupsToProject (markGroupSet(map changeGroup1 (sortGroups(groupSpecs specs))))
 -- 将规约组集合转化为程序
-transSpecgroupsToProject::[[Specification]]->Project
+transSpecgroupsToProject::[([(Specification,Int)],Int)]->Project
 transSpecgroupsToProject groups=case groups of
                                      []->EmptyProject
                                      group1:ll->pconcat (transOneGroupToProject group1) (transSpecgroupsToProject ll)
@@ -302,23 +318,61 @@ specinsert spec l=case l of
                        []->[spec]
                        s0:l'->if (levelOfSpec spec)>(levelOfSpec s0) then spec:l else s0:(specinsert spec l')
 -- 将一个规约组的非原子事件提取出来转化为程序，并修改规约(2改)
-changeGroup2::[Specification]->(Project,[Specification])
-changeGroup2 group=
+-- changeGroup2::([(Specification,Int)],Int)->(Project,([(Specification,Int)],Int))
+-- changeGroup2 group=
+-- 取三元组的某个元素
+getp::(Project,(Var,Int))->Project
+getp r=fst r
+getv::(Project,(Var,Int))->Var
+getv r=fst (snd r)
+geti::(Project,(Var,Int))->Int
+geti r=snd (snd r)
+-- 将一个非原子事件转化为程序，并返回代表该事件的变量和下一个可用的中间变量序号
+change2event::Event->Int->Int ->(Project,(Var,Int))
+change2event e i n=case e of
+                        SingleEvent v ->(EmptyProject,(v,n))
+                        Not e1-> let ce1=(change2event e1 i n)
+                                 in ((pconcat (getp ce1) (Append (Outputc (LDN (getv ce1)) (VarM i 2 (geti ce1))) EmptyProject)),((VarM i 2 (geti ce1)),((geti ce1)+1)))
+                        And e1 e2->let ce1=(change2event e1 i n)
+                                   in let ce2=(change2event e2 i (geti ce1))
+                                      in ((pconcat (pconcat (getp ce1) (getp ce2)) (Append(Outputc (A (LD (getv ce1)) (getv ce2)) (VarM i 2(geti ce2))) EmptyProject)),((VarM i 2(geti ce2)),(geti ce2)+1))
+                        Or e1 e2->let ce1=(change2event e1 i n)
+                                   in let ce2=(change2event e2 i (geti ce1))
+                                      in ((pconcat (pconcat (getp ce1) (getp ce2)) (Append(Outputc (O (LD (getv ce1)) (getv ce2)) (VarM i 2(geti ce2))) EmptyProject)),((VarM i 2(geti ce2)),(geti ce2)+1))
+-- 将一个范围模式的非原子事件提取出来转化为程序，并返回新的范围模式和下一个可用的中间变量序号
+change2scope::Scope->Int->Int->(Project,(Scope,Int))
+change2scope s i n=case s of 
+                        Global d->(EmptyProject,((Global d),n))
+                        After e d->let ce1=(change2event e1 i n)
+                                   in ((getp ce1),((After (SingleEvent (getv ce1)) d),(geti ce1)))
+                        Before e d->let ce1=(change2event e1 i n)
+                                    in ((getp ce1),((Before (SingleEvent (getv ce1)) d),(geti ce1)))
+                        AfterUntil e1 e2 d->let ce1=(change2event e1 i n)
+                                            in let ce2=(change2event e1 i (geti ce1))
+                                               in ((pconcat (getp ce1) (getp ce2)),((AfterUntil (SingleEvent (getv ce1)) (SingleEvent (getv ce2)) d),(geti ce2)))
+                        SIn s1 s2->
+                        SAnd s1 s2
+                        SOr s1 s2
+                        SNot s
+-- 将一个规约的非原子事件提取出来转化为程序，并修改规约
+change2spec::(Specification,Int)->Int->Int->(Project,(Specification,Int))
+change2spec (spec,specnum) i n=case spec of
+                       Spec s p v l->case s of                                           
+                                         
 -- 将一个规约组的非原子范围提取出来转化为程序，并修改规约(3改)
-changeGroup3::[Specification]->(Project,[Specification])
-changeGroup3 group=
+changeGroup3::([(Specification,Int)],Int)->(Project,([(Specification,Int)],Int))
+changeGroup3 group=(EmptyProject,([],0))
 -- 将一个规约组转化为程序
-transOneGroupToProject::[Specification]->Project
+transOneGroupToProject::([(Specification,Int)],Int)->Project
 transOneGroupToProject group=
-  let c1spec=changeGroup1 group in
-    let c2spec=changeGroup2 c1spec in 
+    let c2spec=changeGroup2 group in 
       let c3spec=changeGroup3 (snd c2spec) in
         pconcat (pconcat (fst c2spec) (fst c3spec)) (transPerfectSpec (snd c3spec))
 -- 将三改后的规约转化为程序
-transPerfectSpec::[Specification]->Project
-transPerfectSpec group=
+transPerfectSpec::([(Specification,Int)],Int)->Project
+transPerfectSpec group=EmptyProject
 -- 转程序过程中，需要用到中间变量，中间变量的命名，
--- 使用VarM i j k （i表示第几个规约组，j为2表示2改时表示事件用的变量 为3表示3改时表示范围用的变量，为0时表示最终规约范围。k表示最终编号，j为0时k表示第k条规约要求的范围）
+-- 使用VarM i j k （i表示第几个规约组，j为2表示2改时表示事件用的变量 为3表示3改时表示范围用的变量，k表示最终编号，j为0时k表示第k条规约要求的范围）
 -- 主函数
 main :: IO ()
 main = do specfile <- openFile "spec.txt" ReadWriteMode
