@@ -327,6 +327,12 @@ getv::(Project,(Var,Int))->Var
 getv r=fst (snd r)
 geti::(Project,(Var,Int))->Int
 geti r=snd (snd r)
+getps::(Project,(Scope,Int))->Project
+getps r=fst r
+getvs::(Project,(Scope,Int))->Scope
+getvs r=fst (snd r)
+getis::(Project,(Scope,Int))->Int
+getis r=snd (snd r)
 -- 将一个非原子事件转化为程序，并返回代表该事件的变量和下一个可用的中间变量序号
 change2event::Event->Int->Int ->(Project,(Var,Int))
 change2event e i n=case e of
@@ -343,31 +349,45 @@ change2event e i n=case e of
 change2scope::Scope->Int->Int->(Project,(Scope,Int))
 change2scope s i n=case s of 
                         Global d->(EmptyProject,((Global d),n))
-                        After e d->let ce1=(change2event e1 i n)
+                        After e d->let ce1=(change2event e i n)
                                    in ((getp ce1),((After (SingleEvent (getv ce1)) d),(geti ce1)))
-                        Before e d->let ce1=(change2event e1 i n)
+                        Before e d->let ce1=(change2event e i n)
                                     in ((getp ce1),((Before (SingleEvent (getv ce1)) d),(geti ce1)))
                         AfterUntil e1 e2 d->let ce1=(change2event e1 i n)
                                             in let ce2=(change2event e1 i (geti ce1))
                                                in ((pconcat (getp ce1) (getp ce2)),((AfterUntil (SingleEvent (getv ce1)) (SingleEvent (getv ce2)) d),(geti ce2)))
-                        SIn s1 s2->
-                        SAnd s1 s2
-                        SOr s1 s2
-                        SNot s
--- 将一个规约的非原子事件提取出来转化为程序，并修改规约
-change2spec::(Specification,Int)->Int->Int->(Project,(Specification,Int))
+                        SIn s1 s2->let cs1=(change2scope s1 i n)
+                                   in let cs2=(change2scope s2 i (getis cs1))
+                                      in ( (pconcat (getps cs1) (getps cs2)),((SIn (getvs cs1) (getvs cs2)),(getis cs2)))
+                        SAnd s1 s2->let cs1=(change2scope s1 i n)
+                                    in let cs2=(change2scope s2 i (getis cs1))
+                                       in ( (pconcat (getps cs1) (getps cs2)),((SAnd (getvs cs1) (getvs cs2)),(getis cs2)))
+                        SOr s1 s2->let cs1=(change2scope s1 i n)
+                                   in let cs2=(change2scope s2 i (getis cs1))
+                                      in ( (pconcat (getps cs1) (getps cs2)),((SOr (getvs cs1) (getvs cs2)),(getis cs2)))
+                        SNot s->let cs=(change2scope s i n)
+                                in ( (getps cs) ,((SNot (getvs cs) ),(getis cs)))
+-- 将一个规约的非原子事件提取出来转化为程序，并修改规约,三个int分别代表“是组内第几条规约”，是第i个规约组，从n开始标号，返回值最后一个int表示下一个可以标的号
+change2spec::(Specification,Int)->Int->Int->((Project,(Specification,Int)),Int)
 change2spec (spec,specnum) i n=case spec of
-                       Spec s p v l->case s of                                           
-                                         
--- 将一个规约组的非原子范围提取出来转化为程序，并修改规约(3改)
-changeGroup3::([(Specification,Int)],Int)->(Project,([(Specification,Int)],Int))
-changeGroup3 group=(EmptyProject,([],0))
+                       Spec s p v l->let cs=(change2scope s i n )  
+                                     in (((getps cs),((Spec (getvs cs) p v l),(specnum) ) ) ,(getis cs)  )                     
+-- 将一个规约组的非原子事件提取出来转化为程序，并修改规约(2改)中间的Int表示从几开始标号
+changeGroup2::([(Specification,Int)],Int)->Int->((Project,([(Specification,Int)],Int)),Int)
+changeGroup2 (group,groupnum) n=case group of
+                                   []->((EmptyProject,([],groupnum)),n) 
+                                   spec1:l->let cs=change2spec spec1 groupnum n 
+                                            in let cl=changeGroup2 (l,groupnum) (snd cs) 
+                                               in ( ( (pconcat (fst (fst cs)) (fst (fst cl)) ), ((snd (fst cs)):(fst (snd (fst cl))),groupnum) ) ,(snd cl))                                
+-- 将一个规约组的非原子范围提取出来转化为程序，并修改规约(3改),未实现
+changeGroup3::([(Specification,Int)],Int)->Int->((Project,([(Specification,Int)],Int)),Int)
+changeGroup3 (group,groupnum) n=((EmptyProject,([],0)),0)
 -- 将一个规约组转化为程序
 transOneGroupToProject::([(Specification,Int)],Int)->Project
 transOneGroupToProject group=
-    let c2spec=changeGroup2 group in 
-      let c3spec=changeGroup3 (snd c2spec) in
-        pconcat (pconcat (fst c2spec) (fst c3spec)) (transPerfectSpec (snd c3spec))
+    let c2spec=changeGroup2 group 0 in 
+      let c3spec=changeGroup3 (snd(fst c2spec)) 0 in
+        pconcat (pconcat (fst(fst c2spec)) (fst (fst c3spec))) (transPerfectSpec (snd (fst c3spec)))
 -- 将三改后的规约转化为程序
 transPerfectSpec::([(Specification,Int)],Int)->Project
 transPerfectSpec group=EmptyProject
